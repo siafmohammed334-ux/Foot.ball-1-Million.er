@@ -14,16 +14,17 @@ const LL = {
   skip:  { ic: "⏭", nm: "تخطي", price: 60 }
 };
 const LET = ["أ","ب","ج","د"];
-const GAME_N = { classic: 15, daily: 10, speed: 40, survive: 60, tour: 10 };
+const GAME_N = { classic: 15, daily: 10, speed: 40, survive: 60, tour: 12 };
+const STAGES = ["دور المجموعات", "ربع النهائي", "نصف النهائي", "النهائي"], STAGE_PAY = [0.1, 0.2, 0.3, 0.6];
 /* ---------- البطولات ---------- */
 const TOURS = [
-  { k: "ucl",   g: "club", ic: "⭐", nm: "دوري أبطال أوروبا",   ds: "أقوى بطولة أندية في العالم" },
-  { k: "caf",   g: "club", ic: "🌍", nm: "دوري أبطال أفريقيا",  ds: "الأهلي والزمالك والترجي والوداد وغيرهم" },
-  { k: "afc",   g: "club", ic: "🌏", nm: "دوري أبطال آسيا",     ds: "من الهلال والعين لأوراوا وأولسان" },
-  { k: "euro",  g: "nat",  ic: "🇪🇺", nm: "أمم أوروبا (اليورو)", ds: "تاريخ كأس أمم أوروبا ونجومها" },
-  { k: "afcon", g: "nat",  ic: "🦁", nm: "كأس أمم أفريقيا",     ds: "الفراعنة والأسود وكل أبطال القارة" },
-  { k: "asian", g: "nat",  ic: "🥇", nm: "كأس آسيا (أمم آسيا)", ds: "من اليابان للسعودية وقطر والعراق" },
-  { k: "wc",    g: "nat",  ic: "🏆", nm: "كأس العالم",          ds: "أعظم بطولة في تاريخ كرة القدم" }
+  { k: "ucl", fee: 400,   g: "club", ic: "⭐", nm: "دوري أبطال أوروبا",   ds: "أقوى بطولة أندية في العالم" },
+  { k: "caf", fee: 150,   g: "club", ic: "🌍", nm: "دوري أبطال أفريقيا",  ds: "الأهلي والزمالك والترجي والوداد وغيرهم" },
+  { k: "afc", fee: 150,   g: "club", ic: "🌏", nm: "دوري أبطال آسيا",     ds: "من الهلال والعين لأوراوا وأولسان" },
+  { k: "euro", fee: 400,  g: "nat",  ic: "🇪🇺", nm: "أمم أوروبا (اليورو)", ds: "تاريخ كأس أمم أوروبا ونجومها" },
+  { k: "afcon", fee: 250, g: "nat",  ic: "🦁", nm: "كأس أمم أفريقيا",     ds: "الفراعنة والأسود وكل أبطال القارة" },
+  { k: "asian", fee: 250, g: "nat",  ic: "🥇", nm: "كأس آسيا (أمم آسيا)", ds: "من اليابان للسعودية وقطر والعراق" },
+  { k: "wc", fee: 1000,    g: "nat",  ic: "🏆", nm: "كأس العالم",          ds: "أعظم بطولة في تاريخ كرة القدم" }
 ];
 const TOUR_RE = {
   ucl: /أبطال أوروبا|أوروبا للأندية|الأندية الأوروبية|دوري الأبطال/,
@@ -390,10 +391,10 @@ R.home = function () {
 R.tournaments = function () {
   const card = T => {
     const rec = S.tour && S.tour[T.k], n = tourPool(T.k).length;
-    return `<div class="chal"><div class="ic">${T.ic}</div><div class="t grow"><b>${T.nm}</b><small>${T.ds}</small><br><small>${n} سؤال${rec ? " — أفضل نتيجة: <bdi dir=\"ltr\">" + rec.best + "/10</bdi>" : ""}</small></div><button class="btn" data-tour="${T.k}">العب</button></div>`;
+    return `<div class="chal"><div class="ic">${T.ic}</div><div class="t grow"><b>${T.nm}</b><small>${T.ds}</small><br><small>${n} سؤال${rec && rec.games ? " — أفضل نتيجة: " + (rec.pass >= 4 ? "بطل 🏆" : "وصلت " + STAGES[rec.pass || 0]) : ""}</small></div><button class="btn" data-tour="${T.k}">العب · ${T.fee} 💎</button></div>`;
   };
   app.innerHTML = header() + `<h2>🏟 البطولات</h2>
-    <p class="mut">اختار بطولة وجاوب 10 أسئلة عنها — 15 💎 لكل إجابة صح، و+50 💎 لو جبت 10/10. المساعدات الأربعة متاحة.</p>
+    <p class="mut">ادفع جواهر عشان تدخل. البطولة 4 مراحل: دور المجموعات ← ربع النهائي ← نصف النهائي ← النهائي، وكل مرحلة 3 أسئلة لازم تجاوب 2 صح عشان تعدّيها. كل مرحلة بتعدّيها بترجّع لك جواهر، ولو كسبت البطولة بتكسب أكتر من اللي دفعته.</p>
     <div class="sect">🏟 بطولات الأندية</div>` + TOURS.filter(t => t.g === "club").map(card).join("") + `
     <div class="sect">🌍 بطولات المنتخبات</div>` + TOURS.filter(t => t.g === "nat").map(card).join("") + nav("tournaments");
   app.querySelectorAll("[data-tour]").forEach(b => b.onclick = () => startGame("tour", b.dataset.tour));
@@ -508,10 +509,13 @@ R.challenges = function () {
 /* ---------- اللعب ---------- */
 async function startGame(mode, tour) {
   sfx.tap();
+  const T0 = mode === "tour" ? TOURS.find(x => x.k === tour) : null;
+  if (T0 && S.gems < T0.fee) return toast("محتاج " + T0.fee + " 💎 عشان تدخل " + T0.nm + " — خدهم من المكافآت 🎁");
   if (online() && remoteConfigured() && Date.now() - (startGame.last || 0) > 30000) { startGame.last = Date.now(); await refreshQuestions(); }
-  G = { mode, tour: tour || "", qs: [], n: GAME_N[mode], i: 0, locked: false, free: { fifty: 1, aud: 1, call: 1, skip: 1 }, score: 0, right: 0, streak: 0, t: 0, hidden: [] };
+  G = { mode, tour: tour || "", qs: [], n: GAME_N[mode], i: 0, locked: false, free: { fifty: 1, aud: 1, call: 1, skip: 1 }, score: 0, right: 0, streak: 0, t: 0, hidden: [], sr: 0, passed: 0 };
   if (mode === "speed") G.total = 60;
   if (!pickTier(1, new Set())) { G = null; return toast("مفيش أسئلة كفاية حالياً"); }
+  if (T0) { S.gems -= T0.fee; save(); }
   go("game");
 }
 const qTime = () => G.i < 5 ? 30 : G.i < 10 ? 45 : 60;
@@ -528,7 +532,7 @@ R.game = function () {
   markServed(q); G.hidden = []; G.locked = false;
   const classic = m === "classic", TT = m === "tour" ? TOURS.find(x => x.k === G.tour) : null;
   const llHtml = (classic || m === "daily" || m === "tour") ? '<div class="ll">' + Object.keys(LL).map(k => `<button data-ll="${k}" ${llCount(k) < 1 ? "disabled" : ""}><span>${LL[k].ic}</span>${LL[k].nm}<em>${llCount(k)}</em></button>`).join("") + "</div>" : "";
-  const label = classic ? `السؤال <bdi dir="ltr">${G.i + 1} / 15</bdi>` : m === "daily" ? `السؤال <bdi dir="ltr">${G.i + 1} / 10</bdi>` : m === "tour" ? `${TT.ic} ${TT.nm} · <bdi dir="ltr">${G.i + 1} / 10</bdi>` : m === "speed" ? `صح: ${G.right}` : `سلسلة: ${G.right}`;
+  const label = classic ? `السؤال <bdi dir="ltr">${G.i + 1} / 15</bdi>` : m === "daily" ? `السؤال <bdi dir="ltr">${G.i + 1} / 10</bdi>` : m === "tour" ? `${TT.ic} ${STAGES[Math.floor(G.i / 3)]} · سؤال <bdi dir="ltr">${G.i % 3 + 1} / 3</bdi>` : m === "speed" ? `صح: ${G.right}` : `سلسلة: ${G.right}`;
   const centre = classic ? `<small>الجائزة الحالية</small><b>${fmt(LADDER[G.i])}</b>` : (m === "daily" || m === "tour") ? `<small>الإجابات الصح</small><b>${G.right}</b>` : `<small>النقاط</small><b>${num(G.score)}</b>`;
   app.innerHTML = `<div class="gtop">
       <button class="ibtn" id="quit">✕</button>
@@ -627,7 +631,17 @@ function next(right, timeout) {
     if (G.i === 14) return finish("million");
     G.i++; return R.game();
   }
-  if (G.mode === "daily" || G.mode === "tour") { if (G.i >= 9) return finish("done"); G.i++; return R.game(); }
+  if (G.mode === "tour") {
+    if (right) G.sr++;
+    if (G.i % 3 === 2) {
+      if (G.sr < 2) return finish("out");
+      G.passed++; G.sr = 0;
+      if (G.i >= 11) return finish("done");
+      toast("✅ عديت " + STAGES[G.passed - 1] + " — يلا على " + STAGES[G.passed]);
+    }
+    G.i++; return R.game();
+  }
+  if (G.mode === "daily") { if (G.i >= 9) return finish("done"); G.i++; return R.game(); }
   if (G.mode === "survive") { if (!right) return finish("wrong"); if (G.i >= G.n - 1) return finish("done"); G.i++; return R.game(); }
   if (G.mode === "speed") { if (G.i >= G.n - 1) return finish("done"); G.i++; return R.game(); }
 }
@@ -652,11 +666,15 @@ function finish(why) {
     S.dc = today(); S.stats.dailyDone++; pts = g.right * 50; gems = g.right * 20; info = g.right + "/10";
     icon = g.right >= 7 ? "🏆" : "👏"; title = "خلصت تحدي اليوم"; msg = `جاوبت ${g.right} من 10`;
   } else if (g.mode === "tour") {
-    const perfect = g.right === 10;
-    pts = g.right * 50 + (perfect ? 200 : 0); gems = g.right * 15 + (perfect ? 50 : 0); info = g.right + "/10";
-    icon = perfect ? "👑" : g.right >= 7 ? "🏆" : "👏"; title = perfect ? "عالمي! 10 من 10 في " + TT.nm : "خلصت تحدي " + TT.nm; msg = `جاوبت ${g.right} من 10`;
-    S.tour = S.tour || {}; const rec = S.tour[g.tour] = Object.assign({ games: 0, best: 0, correct: 0 }, S.tour[g.tour]);
-    rec.games++; rec.best = Math.max(rec.best, g.right); rec.correct += g.right;
+    const champ = g.passed >= 4, pass = Math.min(4, g.passed);
+    pts = g.right * 50 + (champ ? 200 : 0);
+    gems = Math.round(TT.fee * STAGE_PAY.slice(0, pass).reduce((a, b) => a + b, 0)) + (champ && g.right === 12 ? Math.round(TT.fee * 0.1) : 0);
+    info = champ ? "بطل 🏆" : STAGES[pass];
+    icon = champ ? "👑" : pass >= 2 ? "🏆" : "👏";
+    title = champ ? "مبروك! أنت بطل " + TT.nm : "خرجت من " + STAGES[pass];
+    msg = champ ? `جاوبت ${g.right} من 12 وكسبت البطولة` : `عديت ${pass} ${pass === 1 ? "مرحلة" : "مراحل"} وجاوبت ${g.right} إجابة صح`;
+    S.tour = S.tour || {}; const rec = S.tour[g.tour] = Object.assign({ games: 0, best: 0, correct: 0, pass: 0 }, S.tour[g.tour]);
+    rec.games++; rec.best = Math.max(rec.best, g.right); rec.correct += g.right; rec.pass = Math.max(rec.pass || 0, pass);
   } else if (g.mode === "speed") {
     pts = g.score; gems = Math.floor(g.right / 2) * 5; info = g.right + " صح"; icon = "⏱"; title = "انتهى الوقت!"; msg = `جاوبت ${g.right} إجابة صح`;
   } else {
