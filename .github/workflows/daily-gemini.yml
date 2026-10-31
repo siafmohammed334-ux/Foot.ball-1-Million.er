@@ -1,0 +1,183 @@
+name: Daily Gemini
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate content
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os, re, json, time, random, sys, urllib.request
+
+          KEY = os.environ["GEMINI_API_KEY"]
+          URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+          TOPICS = ["كأس العالم", "دوري أبطال أوروبا", "الدوري الإنجليزي", "الدوري الإسباني",
+                    "الدوري الإيطالي", "الدوري الألماني والفرنسي", "الكرة المصرية والأهلي والزمالك",
+                    "كأس الأمم الأفريقية", "المنتخبات العربية", "أساطير كرة القدم",
+                    "الأرقام القياسية والهدافون", "المدربون والملاعب"]
+
+          def ask(prompt):
+              body = json.dumps({"contents": [{"parts": [{"text": prompt}]}],
+                                 "generationConfig": {"responseMimeType": "application/json", "temperature": 0.9}}).encode()
+              for i in range(3):
+                  try:
+                      req = urllib.request.Request(URL, body, {"Content-Type": "application/json", "x-goog-api-key": KEY})
+                      r = json.load(urllib.request.urlopen(req, timeout=180))
+                      data = json.loads(r["candidates"][0]["content"]["parts"][0]["text"])
+                      if isinstance(data, list):
+                          return data
+                  except Exception as e:
+                      print("retry", i, type(e).__name__)
+                  time.sleep(20)
+              return []
+
+          def load(p):
+              with open(p, encoding="utf-8") as f:
+                  return json.load(f)
+
+          def save(p, d):
+              with open(p, "w", encoding="utf-8") as f:
+                  json.dump(d, f, ensure_ascii=False, indent=0)
+
+          def good_q(r, n):
+              if not (isinstance(r, list) and len(r) == n):
+                  return False
+              if not all(isinstance(x, str) and x.strip() for x in r[:5]):
+                  return False
+              if len(set(x.strip() for x in r[1:5])) != 4:
+                  return False
+              if not (isinstance(r[5], int) and 1 <= r[5] <= 4):
+                  return False
+              return n == 6 or r[6] == "tr"
+
+          total = 0
+
+          # ---------- questions ----------
+          qs = load("questions.json")
+          seen = {r[0].strip() for r in qs}
+          if os.path.exists("bank.json"):
+              seen |= {r[0].strip() for r in load("bank.json") if isinstance(r, list) and r and isinstance(r[0], str)}
+          added = []
+          tries = 0
+          while len(added) < 50 and tries < 5:
+              tries += 1
+              need = min(25, 50 - len(added))
+              prompt = ("اكتب " + str(need) + " سؤال ثقافة كروية بالعربية للعبة من سيربح المليون. الموضوع: "
+                        + random.choice(TOPICS) + ". الصعوبة متنوعة. معلومات مؤكدة 100% فقط، "
+                        "ولكل سؤال 4 اختيارات مختلفة. أعد JSON فقط: قائمة، كل عنصر قائمة من 6 عناصر: "
+                        "[\"السؤال\",\"اختيار1\",\"اختيار2\",\"اختيار3\",\"اختيار4\",رقم الإجابة الصحيحة من 1 إلى 4]. "
+                        "وزع مكان الإجابة الصحيحة عشوائيا بين 1 و4.")
+              for r in ask(prompt):
+                  if good_q(r, 6) and r[0].strip() not in seen and len(added) < 50:
+                      added.append(r)
+                      seen.add(r[0].strip())
+          if added:
+              save("questions.json", qs + added)
+          print("questions added:", len(added))
+          total += len(added)
+
+          # ---------- transfers ----------
+          tr = load("transfers.json")
+          seen_t = {r[0].strip() for r in tr}
+          added_t = []
+          tries = 0
+          while len(added_t) < 15 and tries < 4:
+              tries += 1
+              need = 15 - len(added_t)
+              prompt = ("اكتب " + str(need) + " سؤال انتقالات لاعبين مشهورين بالعربية، بنفس هذا الأسلوب: "
+                        "من هو اللاعب الذي لعب بالترتيب لـ: ريال مدريد ← يوفنتوس ← النصر؟ "
+                        "اذكر 3 أو 4 أندية بترتيب زمني صحيح ومؤكد 100%. الاختيارات 4 أسماء لاعبين مختلفين. "
+                        "أعد JSON فقط: قائمة، كل عنصر قائمة من 7 عناصر: "
+                        "[\"السؤال\",\"لاعب1\",\"لاعب2\",\"لاعب3\",\"لاعب4\",رقم الإجابة الصحيحة من 1 إلى 4,\"tr\"]. "
+                        "وزع مكان الإجابة الصحيحة عشوائيا.")
+              for r in ask(prompt):
+                  if good_q(r, 7) and r[0].strip() not in seen_t and len(added_t) < 15:
+                      added_t.append(r)
+                      seen_t.add(r[0].strip())
+          if added_t:
+              save("transfers.json", tr + added_t)
+          print("transfers added:", len(added_t))
+          total += len(added_t)
+
+          # ---------- auction ----------
+          with open("auction.js", encoding="utf-8", newline="") as f:
+              src = f.read()
+          m = re.search(r"const NAT = \{(.*?)\};", src, re.S)
+          codes = sorted(set(re.findall(r"\b([A-Z]{3}):\[", m.group(1)))) if m else []
+          have = {x.lower() for x in re.findall(r'P\("[^"]*","([^"]*)"', src)}
+
+          def good_p(p):
+              if not (isinstance(p, list) and len(p) == 5):
+                  return False
+              if not (isinstance(p[0], str) and isinstance(p[1], str) and isinstance(p[4], int)):
+                  return False
+              bad = p[0] + p[1]
+              if '"' in bad or "\\" in bad or not p[0].strip() or not p[1].strip():
+                  return False
+              return p[2] in codes and p[3] in ("ATT", "MID", "DEF", "GK") and 60 <= p[4] <= 99 and p[1].lower() not in have
+
+          def gen_players(n, kind, rng):
+              got = []
+              for _ in range(3):
+                  if len(got) >= n or not codes:
+                      break
+                  prompt = ("اكتب " + str(n - len(got)) + " لاعب كرة قدم " + kind + ". "
+                            "كل لاعب قائمة من 5 عناصر: [\"الاسم بالعربية\",\"English name\",\"كود المنتخب\",\"المركز\",التقييم]. "
+                            "كود المنتخب لازم يكون من هذه الأكواد فقط: " + ", ".join(codes) + ". "
+                            "المركز واحد من: ATT, MID, DEF, GK. التقييم رقم صحيح " + rng + ". "
+                            "لا تكرر هؤلاء: " + ", ".join(sorted(have)) + ". أعد JSON فقط: قائمة من هذه القوائم.")
+                  for p in ask(prompt):
+                      if good_p(p) and len(got) < n:
+                          got.append(p)
+                          have.add(p[1].lower())
+              return got
+
+          cur = gen_players(15, "نشطين حاليا ومشهورين (نجوم موسم 2025/2026)", "من 75 إلى 93")
+          ico = gen_players(5, "أساطير معتزلين (أيكونز) مشهورين جدا", "من 85 إلى 96")
+          new_p = cur + ico
+          if new_p:
+              lines = src.split("\n")
+              s = next(i for i, l in enumerate(lines) if "const POOL = [" in l)
+              e = next(i for i in range(s + 1, len(lines)) if lines[i].strip() == "];")
+              k = e - 1
+              while k > s and not lines[k].strip():
+                  k -= 1
+              if not lines[k].rstrip().endswith(","):
+                  lines[k] = lines[k].rstrip() + ","
+              block = ['  P(%s,%s,"%s","%s",%d),' % (json.dumps(p[0], ensure_ascii=False),
+                       json.dumps(p[1], ensure_ascii=False), p[2], p[3], p[4]) for p in new_p]
+              lines[e:e] = block
+              with open("auction.js", "w", encoding="utf-8", newline="") as f:
+                  f.write("\n".join(lines))
+          print("players added:", len(new_p), "(current", len(cur), "icons", len(ico), ")")
+          total += len(new_p)
+
+          if total == 0:
+              sys.exit(1)
+          PY
+
+      - name: Safety check
+        run: |
+          node --check auction.js
+          python3 -c "import json;[json.load(open(f,encoding='utf-8')) for f in ('questions.json','transfers.json')]"
+
+      - name: Save
+        run: |
+          git config user.name "daily-gemini"
+          git config user.email "bot@users.noreply.github.com"
+          git add questions.json transfers.json auction.js
+          git diff --cached --quiet || git commit -m "Daily Gemini content"
+          git pull --rebase
+          git push
