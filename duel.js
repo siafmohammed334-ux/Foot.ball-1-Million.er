@@ -228,8 +228,9 @@ function showQ() {
   const s = st; if (!s || !s.alive) return;
   const q = s.qs[s.i]; s.revealed = false; s.myAns = null; s.qStart = Date.now(); s.myAnsAt = 0;
   F.app.innerHTML = topBar() + `<div class="qbox">${esc(q.q)}</div>
-    <div class="opts">${q.o.map((t, i) => `<button class="opt" data-o="${i}"><b>${F.LET[i]}</b><span class="tx">${esc(t)}</span><span class="pc"></span></button>`).join("")}</div>`;
+    <div class="opts">${q.o.map((t, i) => `<button class="opt" data-o="${i}"><b>${F.LET[i]}</b><span class="tx">${esc(t)}</span><span class="pc"></span></button>`).join("")}</div>${s.f50 ? "" : '<button class="btn sec" id="f50" style="margin-top:12px">✂ 50:50</button>'}`;
   F.app.querySelectorAll("[data-o]").forEach(b => b.onclick = () => submit(+b.dataset.o));
+  const fb = F.app.querySelector("#f50"); if (fb) fb.onclick = () => { if (s.myAns !== null || s.revealed) return; s.f50 = true; fb.remove(); let k = 0; F.app.querySelectorAll("[data-o]").forEach(b => { if (+b.dataset.o !== q.a && k < 2) { k++; b.setAttribute("disabled", ""); b.style.visibility = "hidden"; } }); };
   if (s.bot) botPlay(s);
   clearInterval(s.tick);
   s.tick = setInterval(() => {

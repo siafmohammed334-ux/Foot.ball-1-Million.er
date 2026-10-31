@@ -13,7 +13,7 @@ const rid = () => Math.random().toString(36).slice(2, 10);
 function myId() { let id = F.SES && F.SES.id; if (!id || id === "guest") { try { id = localStorage.getItem("fm_uid"); if (!id) { id = rid(); localStorage.setItem("fm_uid", id); } } catch (e) { id = rid(); } } return String(id).replace(/[.$#\[\]\/]/g, "_"); }
 const CH = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", mkCode = () => Array.from({ length: 6 }, () => CH[Math.floor(Math.random() * CH.length)]).join("");
 const rng = s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-const POOL = [["ليونيل ميسي",99,"ATT"],["كريستيانو رونالدو",99,"ATT"],["كيليان مبابي",97,"ATT"],["إيرلينغ هالاند",96,"ATT"],["محمد صلاح",95,"ATT"],["نيمار",94,"ATT"],["فينيسيوس جونيور",94,"ATT"],["جود بيلينغهام",94,"MID"],["كريم بنزيما",93,"ATT"],["هاري كين",93,"ATT"],["كيفين دي بروين",93,"MID"],["لوكا مودريتش",92,"MID"],["رودري",92,"MID"],["فيرجيل فان دايك",92,"DEF"],["تيبو كورتوا",92,"GK"],["روبرت ليفاندوفسكي",92,"ATT"],["أليسون بيكر",91,"GK"],["تشافي",91,"MID"],["أندريس إنييستا",91,"MID"],["سيرخيو راموس",90,"DEF"],["مانويل نوير",90,"GK"],["سون هيونغ مين",89,"ATT"],["لاوتارو مارتينيز",89,"ATT"],["أشرف حكيمي",88,"DEF"],["محمد أبو تريكة",88,"MID"],["ديدييه دروغبا",88,"ATT"],["ياسين بونو",86,"GK"],["رياض محرز",86,"ATT"],["ساديو ماني",86,"ATT"],["يايا توريه",87,"MID"],["أندريا بيرلو",88,"MID"],["إدين هازارد",88,"ATT"],["مارسيلو",88,"DEF"],["عمر مرموش",84,"ATT"],["حكيم زياش",82,"MID"],["محمود تريزيغيه",80,"ATT"],["يوسف النصيري",79,"ATT"],["محمد النني",78,"MID"],["محمد الشناوي",76,"GK"],["مصطفى محمد",75,"ATT"],["أحمد حجازي",72,"DEF"],["رامي ربيعة",74,"DEF"],["أحمد فتحي",73,"DEF"],["عبد الله السعيد",74,"MID"],["محمد عبد المنعم",72,"DEF"],["لاعب ناشئ واعد",66,"MID"]];
+const POOL = [["ليونيل ميسي",99,"ATT"],["كريستيانو رونالدو",99,"ATT"],["كيليان مبابي",97,"ATT"],["إيرلينغ هالاند",96,"ATT"],["محمد صلاح",95,"ATT"],["نيمار",94,"ATT"],["فينيسيوس جونيور",94,"ATT"],["جود بيلينغهام",94,"MID"],["كريم بنزيما",93,"ATT"],["هاري كين",93,"ATT"],["كيفين دي بروين",93,"MID"],["لوكا مودريتش",92,"MID"],["رودري",92,"MID"],["فيرجيل فان دايك",92,"DEF"],["تيبو كورتوا",92,"GK"],["روبرت ليفاندوفسكي",92,"ATT"],["أليسون بيكر",91,"GK"],["تشافي",91,"MID"],["أندريس إنييستا",91,"MID"],["سيرخيو راموس",90,"DEF"],["مانويل نوير",90,"GK"],["سون هيونغ مين",89,"ATT"],["لاوتارو مارتينيز",89,"ATT"],["أشرف حكيمي",88,"DEF"],["محمد أبو تريكة",88,"MID"],["ديدييه دروغبا",88,"ATT"],["ياسين بونو",86,"GK"],["رياض محرز",86,"ATT"],["ساديو ماني",86,"ATT"],["يايا توريه",87,"MID"],["أندريا بيرلو",88,"MID"],["إدين هازارد",88,"ATT"],["مارسيلو",88,"DEF"],["عمر مرموش",84,"ATT"],["حكيم زياش",82,"MID"],["محمود تريزيغيه",80,"ATT"],["يوسف النصيري",79,"ATT"],["محمد النني",78,"MID"],["محمد الشناوي",76,"GK"],["مصطفى محمد",75,"ATT"],["أحمد حجازي",72,"DEF"],["رامي ربيعة",74,"DEF"],["أحمد فتحي",73,"DEF"],["عبد الله السعيد",74,"MID"],["محمد عبد المنعم",72,"DEF"],["لاعب ناشئ واعد",66,"MID"],["دييغو مارادونا",98,"ATT"],["رونالدو الظاهرة",96,"ATT"],["زين الدين زيدان",95,"MID"],["رونالدينيو",92,"ATT"],["باولو مالديني",91,"DEF"],["جيجي بوفون",90,"GK"],["تياغو سيلفا",88,"DEF"],["عصام الحضري",78,"GK"],["أحمد حسام ميدو",74,"ATT"],["محمد زيدان",72,"ATT"]];
 const COACHES = [["أليكس فيرغسون",98],["بيب غوارديولا",97],["كارلو أنشيلوتي",96],["يورغن كلوب",94],["زين الدين زيدان",93],["جوزيه مورينيو",92],["لويس إنريكي",91],["ديدييه ديشان",90],["دييغو سيميوني",90],["مدرب محلي",76],["مدرب مغمور",72],["مدرب ناشئين",70]];
 const FMT = { five: { n: 5, bud: 100, nm: "خماسي" }, full: { n: 11, bud: 200, nm: "ملعب كامل 11" } };
 const BID_MS = 12000, ROUND = 15000;
@@ -26,7 +26,7 @@ const view = h => { F.app.innerHTML = h; };
 
 R.auction = function () {
   stop(); F.setLeave(stop);
-  view(`<div class="card" style="text-align:center"><h3>🔨 المزاد</h3><p>اشتري لاعبين بميزانيتك، واللي تشكيلته أقوى يكسب المباراة!</p></div>
+  view(`<div class="card" data-mkt="1" style="text-align:center"><h3>🔨 المزاد</h3><p>اشتري لاعبين بميزانيتك، واللي تشكيلته أقوى يكسب المباراة!</p></div>
   <div class="card"><b>اختار نوع المزاد</b><div style="display:flex;gap:8px;margin-top:8px"><button class="btn ${fmtK==="five"?"":"sec"}" id="f5">خماسي · 100 م</button><button class="btn ${fmtK==="full"?"":"sec"}" id="f11">ملعب كامل 11 · 200 م</button></div></div>
   <button class="btn big" id="ai">🤖 ضد الذكاء الاصطناعي</button>
   <button class="btn sec" id="rnd" style="margin-top:10px">🎲 منافس عشوائي</button>
@@ -35,7 +35,7 @@ R.auction = function () {
   <button class="btn sec" id="bk" style="margin-top:14px">رجوع</button>`);
   $("#f5").onclick = () => { fmtK = "five"; R.auction(); }; $("#f11").onclick = () => { fmtK = "full"; R.auction(); };
   $("#ai").onclick = () => begin({ mode: "ai", role: "h", seed: Math.floor(Math.random() * 1e9), t0: Date.now() + 2500 });
-  $("#rnd").onclick = randomMatch; $("#mk").onclick = () => createRoom(false); $("#jn").onclick = joinRoom; $("#bk").onclick = () => F.go("home");
+  $("#rnd").onclick = randomMatch; $("#mk").onclick = () => createRoom(false); $("#jn").onclick = joinRoom; $("#bk").onclick = () => F.go("market");
 };
 function guard() { if (!F.online()) { F.toast("المزاد أونلاين محتاج إنترنت"); return false; } if (!ready()) { F.toast("الأونلاين مش مفعّل"); return false; } return true; }
 async function createRoom(open) {
@@ -125,6 +125,24 @@ function finish() {
   <button class="btn big" id="ag">مزاد جديد</button><button class="btn sec" id="hm" style="margin-top:10px">الرئيسية</button>`);
   M = null; $("#ag").onclick = () => F.go("auction"); $("#hm").onclick = () => F.go("home");
 }
-const home = R.home;
-R.home = function () { home.apply(this, arguments); const d = $("#duel"); if (d && !$("#auc")) { d.insertAdjacentHTML("afterend", '<button class="btn sec" id="auc" style="margin-top:12px">🔨 المزاد</button>'); $("#auc").onclick = () => F.go("auction"); } };
+const wrap = n => { const o = R[n]; R[n] = function () { window.__tr = false; return o.apply(this, arguments); }; }; wrap("home"); wrap("challenges");
+R.market = function () {
+  stop(); window.__tr = false; const c = (ic, t, d, id) => `<div class="chal" data-mkt="1"><div class="ic">${ic}</div><div class="t grow"><b>${t}</b><small>${d}</small></div><button class="btn" data-m="${id}">ادخل</button></div>`;
+  F.app.innerHTML = F.header() + "<h2>🔨 المزاد والانتقالات</h2>" + c("🔨", "المزاد", "اشتري لاعبين بميزانيتك والأقوى يكسب — ضد الذكاء الاصطناعي أو لاعب حقيقي", "a") + c("🔄", "اعرف اللاعب من انتقالاته", "10 أسئلة: أندية اللاعب بالترتيب وانت تعرفه", "t") + c("⚔", "انتقالات واحد ضد واحد", "اعرف اللاعب من انتقالاته ضد لاعب حقيقي أو الكمبيوتر", "d") + F.nav("market");
+  F.app.querySelectorAll("[data-go]").forEach(b => b.onclick = () => F.go(b.dataset.go));
+  F.app.querySelectorAll("[data-m]").forEach(b => b.onclick = () => {
+    const k = b.dataset.m;
+    if (k === "a") return F.go("auction");
+    if (k === "t") { window.__keep = 1; F.go("challenges"); const x = F.app.querySelector('[data-ch="transfer"]'); window.__keep = 0; return x ? x.click() : F.toast("مش متاح دلوقتي"); }
+    F.go("duel"); window.__tr = true; const y = F.app.querySelector('[data-cat="tr"]'); if (y) y.click();
+  });
+};
+function fix() {
+  const a = F.app, nv = a.querySelector(".nav");
+  if (nv && !nv.querySelector('[data-go="market"]')) { nv.insertAdjacentHTML("beforeend", `<button data-go="market" class="${a.querySelector("[data-mkt]") ? "on" : ""}"><span>🔨</span>المزاد</button>`); nv.lastElementChild.onclick = () => F.go("market"); }
+  if (!window.__keep) { const t = a.querySelector('[data-ch="transfer"]'), c = t && t.closest(".chal"); if (c) c.remove(); }
+  const tb = a.querySelector(".tabs"), g = tb && tb.querySelector('[data-cat="gen"]'), r = tb && tb.querySelector('[data-cat="tr"]');
+  if (g && r) { if (!window.__tr && r.classList.contains("on")) return g.click(); (window.__tr ? g : r).remove(); }
+}
+new MutationObserver(fix).observe(F.app, { childList: true }); fix();
 })();
