@@ -1,0 +1,44 @@
+name: Daily Questions
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add 60 new questions
+        run: |
+          python3 - <<'PY'
+          import json
+          def valid(r):
+              return (isinstance(r, list) and len(r) >= 6
+                      and all(isinstance(x, str) and x for x in r[:5])
+                      and len(set(r[1:5])) == 4 and r[5] in (1, 2, 3))
+          q = json.load(open("questions.json", encoding="utf-8"))
+          b = json.load(open("bank.json", encoding="utf-8"))
+          have = {r[0].strip() for r in q}
+          add, rest = [], []
+          for r in b:
+              if not valid(r) or r[0].strip() in have:
+                  continue
+              if len(add) < 60:
+                  add.append(r)
+                  have.add(r[0].strip())
+              else:
+                  rest.append(r)
+          q += add
+          dump = lambda f, d: open(f, "w", encoding="utf-8").write(json.dumps(d, ensure_ascii=False, separators=(",", ":")))
+          dump("questions.json", q)
+          dump("bank.json", rest)
+          print(len(add), "added,", len(rest), "left in bank,", len(q), "total")
+          PY
+      - name: Save changes
+        run: |
+          git config user.name "daily-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add questions.json bank.json
+          git diff --cached --quiet || (git commit -m "Daily: add new questions" && git push)
