@@ -136,7 +136,8 @@ const save = () => { if (SES && S) lsSet("fm_data_" + SES.id, S); };
 const BUNDLED = window.BUNDLED_QUESTIONS || [];
 let REMOTE = lsGet("fm_remote", []);
 const online = () => navigator.onLine !== false;
-const PACK_N = 200; // عدد الأسئلة المحفوظة للأوفلاين
+const PACK_N = 500; // عدد الأسئلة المحفوظة للأوفلاين
+let LAST_ADDED = 0; // عدد الأسئلة الجديدة اللي نزلت في آخر تحديث
 const remoteConfigured = () => CFG.QUESTIONS_URL && !/USERNAME|REPO/.test(CFG.QUESTIONS_URL);
 function validQ(r) { return Array.isArray(r) && r.length >= 6 && r.slice(0,5).every(x => typeof x === "string" && x) && new Set(r.slice(1,5)).size === 4 && r[5] >= 1 && r[5] <= 3; }
 async function refreshQuestions() {
@@ -148,7 +149,9 @@ async function refreshQuestions() {
     if (!res.ok) return false;
     const data = await res.json();
     const arr = (Array.isArray(data) ? data : data.questions || []).filter(validQ);
-    if (arr.length >= 10) { REMOTE = arr; lsSet("fm_remote", arr); if (S) buildPack(); return true; }
+    if (arr.length >= 10) {
+      REMOTE = arr; lsSet("fm_remote", arr); if (S) topUpPack(); return true;
+    }
   } catch (e) {}
   return false;
 }
@@ -163,7 +166,7 @@ function buildPack() {
   const seen = new Set(S.seen), all = poolAll(), pack = [], ids = new Set();
   const rem = new Set(REMOTE.map(qid));
   const add = r => { if (pack.length < PACK_N && !ids.has(qid(r))) { ids.add(qid(r)); pack.push(r); } };
-  [70, 80, 50].forEach((n, i) => {
+  [175, 200, 125].forEach((n, i) => {
     const tier = shuffle(all.filter(r => r[5] === i + 1));
     const fresh = tier.filter(r => !seen.has(qid(r))), old = tier.filter(r => seen.has(qid(r)));
     const freshNew = fresh.filter(r => rem.has(qid(r))), freshOld = fresh.filter(r => !rem.has(qid(r)));
@@ -172,6 +175,17 @@ function buildPack() {
   // لو فئة ناقصة (مثلاً الصعب قليل) نكمّل لحد 200 من باقي الأسئلة
   shuffle(all.filter(r => !seen.has(qid(r))).concat(all)).forEach(add);
   S.pack = pack; save();
+}
+// تكملة الحزمة: بنشيل الأسئلة اللي اتلعبت، وبنجيب أسئلة جديدة خالص (ماظهرتش قبل كده) لحد ما الحزمة ترجع 500
+function topUpPack() {
+  if (!S) return;
+  if (!S.pack || !S.pack.length) { buildPack(); LAST_ADDED = S.pack.length; return; }
+  const seen = new Set(S.seen);
+  const keep = S.pack.filter(r => validQ(r) && !seen.has(qid(r)));
+  const ids = new Set(keep.map(qid));
+  const need = PACK_N - keep.length;
+  const fresh = shuffle(poolAll().filter(r => !seen.has(qid(r)) && !ids.has(qid(r)))).slice(0, Math.max(0, need));
+  S.pack = keep.concat(fresh); LAST_ADDED = fresh.length; save();
 }
 function poolOffline() {
   const m = new Map();
@@ -485,11 +499,11 @@ R.profile = function () {
 R.settings = function () {
   const sw = (k, t) => `<div class="sw"><span>${t}</span><button class="tg ${S.set[k] ? "on" : ""}" data-sw="${k}"></button></div>`;
   app.innerHTML = header() + `<h2>⚙ الإعدادات</h2><div class="card">${sw("sound", "🔊 الصوت والمؤثرات")}${sw("voice", "🗣 التعليق الصوتي (إجابة صحيحة / خاطئة)")}${sw("vibrate", "📳 الاهتزاز")}</div>
-    <div class="card"><b>الأسئلة</b><div class="mut" style="margin:6px 0">${netBadge()} — أسئلة جديدة لسه ماشفتهاش: ${poolAll().filter(r => !S.seen.includes(qid(r))).length}<br>الأوفلاين: محفوظ لك ${S.pack.length} سؤال، ولما النت يشتغل بنجيب لك أسئلة جديدة وبنجدّد المحفوظ.</div>
+    <div class="card"><b>الأسئلة</b><div class="mut" style="margin:6px 0">${netBadge()} — أسئلة جديدة لسه ماشفتهاش: ${poolAll().filter(r => !S.seen.includes(qid(r))).length}<br>الأوفلاين: محفوظ لك ${S.pack.length} سؤال (بنكمّلها لـ 500 بأسئلة ماشفتهاش)، ولما النت يشتغل بنجيب لك أسئلة جديدة وبنجدّد المحفوظ.</div>
       <button class="btn sec" id="upd">🔄 تحديث الأسئلة الآن</button></div>
     <div class="card mut">مليونير كرة القدم — لعبة ترفيهية. الجوائز افتراضية ولا توجد أي جوائز مالية حقيقية. الأسئلة عن كرة القدم للرجال.</div>` + nav("profile");
   app.querySelectorAll("[data-sw]").forEach(b => b.onclick = () => { S.set[b.dataset.sw] = !S.set[b.dataset.sw]; save(); R.settings(); });
-  $("#upd").onclick = async () => { toast("جاري التحديث..."); const ok = await refreshQuestions(); toast(!online() ? "مفيش نت حالياً" : !remoteConfigured() ? "الأسئلة المدمجة بس حالياً" : ok ? "تم تحديث الأسئلة ✓" : "تعذّر التحديث"); R.settings(); };
+  $("#upd").onclick = async () => { toast("جاري التحديث..."); const ok = await refreshQuestions(); toast(!online() ? "مفيش نت حالياً" : !remoteConfigured() ? "الأسئلة المدمجة بس حالياً" : ok ? (LAST_ADDED > 0 ? "تم التحديث ✓ نزل " + LAST_ADDED + " سؤال جديد، والمحفوظ دلوقتي " + S.pack.length : "الحزمة كاملة أو مفيش أسئلة جديدة على السيرفر، والمحفوظ " + S.pack.length) : "تعذّر التحديث"); R.settings(); };
 };
 
 /* التحديات */
