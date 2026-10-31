@@ -18,7 +18,7 @@ jobs:
       - name: Prepare www
         run: |
           mkdir www
-          cp index.html app.js duel.js questions.js questions.json style.css config.js cordova.js cordova_plugins.js icon.png logo.jpg www/
+          cp index.html app.js duel.js auction.js questions.js questions-10.js questions.json style.css config.js cordova.js cordova_plugins.js icon.png logo.jpg www/
           cp -r fonts www/fonts
           sed -i "s#https://raw.githubusercontent.com/[^/]*/[^/]*/main/questions.json#https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/questions.json#" www/config.js
           if [ -f firebase-db-url.txt ]; then URL=$(tr -d ' \r\n' < firebase-db-url.txt); sed -i "s#FIREBASE_DB: \"\"#FIREBASE_DB: \"$URL\"#" www/config.js; fi
