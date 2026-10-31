@@ -14,7 +14,7 @@ const LL = {
   skip:  { ic: "⏭", nm: "تخطي", price: 60 }
 };
 const LET = ["أ","ب","ج","د"];
-const GAME_N = { classic: 15, daily: 10, speed: 40, survive: 60, tour: 12 };
+const GAME_N = { classic: 15, daily: 10, speed: 40, survive: 60, tour: 12, transfer: 10 };
 const STAGES = ["دور المجموعات", "ربع النهائي", "نصف النهائي", "النهائي"], STAGE_PAY = [0.1, 0.2, 0.3, 0.6];
 /* ---------- البطولات ---------- */
 const TOURS = [
@@ -140,26 +140,39 @@ const PACK_N = 500; // عدد الأسئلة المحفوظة للأوفلاين
 let LAST_ADDED = 0; // عدد الأسئلة الجديدة اللي نزلت في آخر تحديث
 const remoteConfigured = () => CFG.QUESTIONS_URL && !/USERNAME|REPO/.test(CFG.QUESTIONS_URL);
 function validQ(r) { return Array.isArray(r) && r.length >= 6 && r.slice(0,5).every(x => typeof x === "string" && x) && new Set(r.slice(1,5)).size === 4 && r[5] >= 1 && r[5] <= 3; }
+// ملفات إضافية بتتحمّل جنب questions.json (لو مش موجودة بيتجاهلها من غير مشكلة)
+const EXTRA_FILES = CFG.EXTRA_FILES || ["questions-extra.json", "transfers.json"];
+async function fetchList(url) {
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 8000);
+  try {
+    const res = await fetch(url + "?t=" + Date.now(), { signal: ctl.signal, cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.questions || []);
+  } catch (e) { return null; } finally { clearTimeout(to); }
+}
 async function refreshQuestions() {
   if (!online() || !remoteConfigured()) return false;
   try {
-    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 8000);
-    const res = await fetch(CFG.QUESTIONS_URL + "?t=" + Date.now(), { signal: ctl.signal, cache: "no-store" });
-    clearTimeout(to);
-    if (!res.ok) return false;
-    const data = await res.json();
-    const arr = (Array.isArray(data) ? data : data.questions || []).filter(validQ);
+    const base = await fetchList(CFG.QUESTIONS_URL);
+    if (!base) return false;
+    const dir = CFG.QUESTIONS_URL.replace(/[^\/]*$/, "");
+    const extras = await Promise.all(EXTRA_FILES.map(f => fetchList(dir + f)));
+    const arr = base.concat(...extras.map(x => x || [])).filter(validQ);
     if (arr.length >= 10) {
       REMOTE = arr; lsSet("fm_remote", arr); if (S) topUpPack(); return true;
     }
   } catch (e) {}
   return false;
 }
-function poolAll() {
+const isTr = r => r[6] === "tr"; // وسم قسم «اعرف اللاعب من انتقالاته»
+function poolAny() {
   const m = new Map();
   BUNDLED.concat(REMOTE).forEach(r => { if (validQ(r)) m.set(qid(r), r); });
   return Array.from(m.values());
 }
+function poolAll() { return poolAny().filter(r => !isTr(r)); }
+const poolTr = () => poolAny().filter(isTr);
 // حزمة الأوفلاين: 200 سؤال، بنفضّل فيها الأسئلة اللي اللاعب لسه ماشافهاش
 function buildPack() {
   if (!S) return;
@@ -190,7 +203,7 @@ function topUpPack() {
 function poolOffline() {
   const m = new Map();
   (S.pack || []).forEach(r => { if (validQ(r)) m.set(qid(r), r); });
-  if (m.size < 60) shuffle(BUNDLED).forEach(r => { if (m.size < 150) m.set(qid(r), r); });
+  if (m.size < 60) shuffle(BUNDLED.filter(r => !isTr(r))).forEach(r => { if (m.size < 150) m.set(qid(r), r); });
   return Array.from(m.values());
 }
 function markServed(q) {
@@ -214,7 +227,20 @@ function pickTour(t, used) {
   const c = pool.filter(free);
   return c.length ? c[Math.floor(Math.random() * c.length)] : null;
 }
+function pickTr(t, used) {
+  const pool = poolTr(), seen = new Set(S.seen), free = r => !used.has(qid(r));
+  for (const onlyNew of [true, false]) {
+    for (const d of [0, 1, -1, 2, -2]) {
+      const tt = t + d; if (tt < 1 || tt > 3) continue;
+      const c = pool.filter(r => r[5] === tt && free(r) && (!onlyNew || !seen.has(qid(r))));
+      if (c.length) return c[Math.floor(Math.random() * c.length)];
+    }
+  }
+  const c = pool.filter(free);
+  return c.length ? c[Math.floor(Math.random() * c.length)] : null;
+}
 function pickTier(t, used) {
+  if (G && G.mode === "transfer") return pickTr(t, used);
   if (G && G.mode === "tour") return pickTour(t, used);
   const offline = !online();
   const pool = offline ? poolOffline() : poolAll();
@@ -243,7 +269,7 @@ function norm(r) {
 }
 // الصعوبة بتزيد مع التقدّم ومع كل إجابة صح (ومستواك العام)
 function tierFor() {
-  const prog = (G.mode === "classic" || G.mode === "daily" || G.mode === "tour") ? G.i / (GAME_N[G.mode] - 1) : Math.min(1, G.right / 12);
+  const prog = (G.mode === "classic" || G.mode === "daily" || G.mode === "tour" || G.mode === "transfer") ? G.i / (GAME_N[G.mode] - 1) : Math.min(1, G.right / 12);
   const t = 1 + prog * 2 + S.skill * 0.6 + Math.min(.5, G.streak * .08);
   return Math.max(1, Math.min(3, Math.round(t)));
 }
@@ -512,6 +538,7 @@ R.challenges = function () {
   const c = (ic, t, d, id, extra, dis) => `<div class="chal"><div class="ic">${ic}</div><div class="t grow"><b>${t}</b><small>${d}</small></div><button class="btn" data-ch="${id}" ${dis ? "disabled" : ""}>${extra}</button></div>`;
   app.innerHTML = header() + `<h2>⚡ التحديات</h2>` +
     c("⚔", "واحد ضد واحد", "تحدّى لاعب حقيقي أو صديقك على واتساب", "duel", "العب") +
+    c("🔄", "اعرف اللاعب من انتقالاته", "10 أسئلة: أندية اللاعب بالترتيب وانت تعرفه — 20 💎 لكل إجابة صح", "transfer", "العب") +
     c("📅", "تحدي اليوم", "10 أسئلة — مرة كل يوم — 20 💎 لكل إجابة صح", "daily", doneToday ? "تم ✓" : "العب", doneToday) +
     c("⏱", "تحدي السرعة", "60 ثانية: جاوب أكبر عدد من الأسئلة", "speed", "العب") +
     c("🔥", "تحدي الصمود", "كمّل لحد أول غلطة — كل إجابة صح بنقاط أعلى", "survive", "العب") +
@@ -545,9 +572,9 @@ R.game = function () {
   const q = G.qs[G.i], m = G.mode;
   markServed(q); G.hidden = []; G.locked = false;
   const classic = m === "classic", TT = m === "tour" ? TOURS.find(x => x.k === G.tour) : null;
-  const llHtml = (classic || m === "daily" || m === "tour") ? '<div class="ll">' + Object.keys(LL).map(k => `<button data-ll="${k}" ${llCount(k) < 1 ? "disabled" : ""}><span>${LL[k].ic}</span>${LL[k].nm}<em>${llCount(k)}</em></button>`).join("") + "</div>" : "";
-  const label = classic ? `السؤال <bdi dir="ltr">${G.i + 1} / 15</bdi>` : m === "daily" ? `السؤال <bdi dir="ltr">${G.i + 1} / 10</bdi>` : m === "tour" ? `${TT.ic} ${STAGES[Math.floor(G.i / 3)]} · سؤال <bdi dir="ltr">${G.i % 3 + 1} / 3</bdi>` : m === "speed" ? `صح: ${G.right}` : `سلسلة: ${G.right}`;
-  const centre = classic ? `<small>الجائزة الحالية</small><b>${fmt(LADDER[G.i])}</b>` : (m === "daily" || m === "tour") ? `<small>الإجابات الصح</small><b>${G.right}</b>` : `<small>النقاط</small><b>${num(G.score)}</b>`;
+  const llHtml = (classic || m === "daily" || m === "tour" || m === "transfer") ? '<div class="ll">' + Object.keys(LL).map(k => `<button data-ll="${k}" ${llCount(k) < 1 ? "disabled" : ""}><span>${LL[k].ic}</span>${LL[k].nm}<em>${llCount(k)}</em></button>`).join("") + "</div>" : "";
+  const label = classic ? `السؤال <bdi dir="ltr">${G.i + 1} / 15</bdi>` : m === "daily" ? `السؤال <bdi dir="ltr">${G.i + 1} / 10</bdi>` : m === "transfer" ? `🔄 اعرف اللاعب · <bdi dir="ltr">${G.i + 1} / 10</bdi>` : m === "tour" ? `${TT.ic} ${STAGES[Math.floor(G.i / 3)]} · سؤال <bdi dir="ltr">${G.i % 3 + 1} / 3</bdi>` : m === "speed" ? `صح: ${G.right}` : `سلسلة: ${G.right}`;
+  const centre = classic ? `<small>الجائزة الحالية</small><b>${fmt(LADDER[G.i])}</b>` : (m === "daily" || m === "tour" || m === "transfer") ? `<small>الإجابات الصح</small><b>${G.right}</b>` : `<small>النقاط</small><b>${num(G.score)}</b>`;
   app.innerHTML = `<div class="gtop">
       <button class="ibtn" id="quit">✕</button>
       <div class="prize">${centre}</div>
@@ -655,7 +682,7 @@ function next(right, timeout) {
     }
     G.i++; return R.game();
   }
-  if (G.mode === "daily") { if (G.i >= 9) return finish("done"); G.i++; return R.game(); }
+  if (G.mode === "daily" || G.mode === "transfer") { if (G.i >= 9) return finish("done"); G.i++; return R.game(); }
   if (G.mode === "survive") { if (!right) return finish("wrong"); if (G.i >= G.n - 1) return finish("done"); G.i++; return R.game(); }
   if (G.mode === "speed") { if (G.i >= G.n - 1) return finish("done"); G.i++; return R.game(); }
 }
@@ -665,7 +692,7 @@ function finish(why) {
   const g = G; G = null; if (!g) return go("home");
   let prize = 0, pts = 0, gems = 0, title = "", icon = "⚽", msg = "", info = "";
   const TT = g.mode === "tour" ? TOURS.find(x => x.k === g.tour) : null;
-  const name = TT ? "🏟 " + TT.nm : { classic: "المليونير الكلاسيكي", daily: "تحدي اليوم", speed: "تحدي السرعة", survive: "تحدي الصمود" }[g.mode];
+  const name = TT ? "🏟 " + TT.nm : { classic: "المليونير الكلاسيكي", daily: "تحدي اليوم", speed: "تحدي السرعة", survive: "تحدي الصمود", transfer: "اعرف اللاعب من انتقالاته" }[g.mode];
   if (g.mode === "classic") {
     if (why === "million") { prize = 1000000; S.stats.millions++; }
     else if (why === "withdraw") prize = g.i ? LADDER[g.i - 1] : 0;
@@ -679,6 +706,9 @@ function finish(why) {
   } else if (g.mode === "daily") {
     S.dc = today(); S.stats.dailyDone++; pts = g.right * 50; gems = g.right * 20; info = g.right + "/10";
     icon = g.right >= 7 ? "🏆" : "👏"; title = "خلصت تحدي اليوم"; msg = `جاوبت ${g.right} من 10`;
+  } else if (g.mode === "transfer") {
+    pts = g.right * 50; gems = g.right * 20; info = g.right + "/10";
+    icon = g.right >= 7 ? "🏆" : "👏"; title = "خلصت «اعرف اللاعب»"; msg = `عرفت ${g.right} لاعب من 10`;
   } else if (g.mode === "tour") {
     const champ = g.passed >= 4, pass = Math.min(4, g.passed);
     pts = g.right * 50 + (champ ? 200 : 0);
@@ -728,7 +758,7 @@ window.addEventListener("offline", () => { toast("النت قطع — هتكمل
 
 /* واجهة للملفات التانية (واحد ضد واحد) */
 const FM = window.FM = {
-  R, go, app, $, esc, toast, modal, closeModal, header, nav, sfx, vib, confetti, celebrate, speak, feedback, fmt, num, shuffle, norm, pickTier, validQ, qid, online, save, rankOf, checkAch, LET, markServed,
+  R, go, app, $, esc, toast, modal, closeModal, header, nav, sfx, vib, confetti, celebrate, speak, feedback, fmt, num, shuffle, norm, pickTier, validQ, qid, pickTr, isTr, online, save, rankOf, checkAch, LET, markServed,
   lock: false,
   get S() { return S; }, get SES() { return SES; },
   setLeave(f) { leaveHook = f; }

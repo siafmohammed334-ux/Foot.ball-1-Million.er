@@ -8,6 +8,7 @@ const NQ = 10, QT = 15, TIERS = [1,1,2,2,2,2,3,3,3,3];
 const base = () => String(CFG.FIREBASE_DB || "").replace(/\/+$/, "");
 const ready = () => /^https?:\/\//.test(base());
 let st = null;   // حالة المباراة الحالية
+let DCAT = "gen"; // نوع الأسئلة: gen = عامة ، tr = اعرف اللاعب من انتقالاته
 
 async function db(method, path, body) {
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 7000);
@@ -27,10 +28,10 @@ const me = () => ({ id: myId(), name: (F.SES && F.SES.name) || "لاعب" });
 const CODE_CH = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const code = () => Array.from({ length: 6 }, () => CODE_CH[Math.floor(Math.random() * CODE_CH.length)]).join("");
 
-function buildQs() {
+function buildQs(cat) {
   const used = new Set(), out = [];
   for (const t of TIERS) {
-    const r = F.pickTier(t, used); if (!r) return null;
+    const r = cat === "tr" ? F.pickTr(t, used) : F.pickTier(t, used); if (!r) return null;
     used.add(F.qid(r)); const n = F.norm(r);
     out.push({ q: n.q, o: n.opts.map(x => x.t), a: n.ans, l: n.l });
   }
@@ -43,7 +44,7 @@ function guard() {
 }
 function clearAll() {
   if (!st) return;
-  st.alive = false; clearTimeout(st.timer); clearInterval(st.poll); clearInterval(st.tick); clearTimeout(st.adv);
+  st.alive = false; clearTimeout(st.timer); clearInterval(st.poll); clearInterval(st.tick); clearTimeout(st.adv); clearTimeout(st.botT);
 }
 async function cleanupLeave() {
   const s = st; if (!s) return; clearAll();
@@ -60,13 +61,17 @@ R.duel = function () {
   enter();
   F.app.innerHTML = F.header() + `<h2>⚔ واحد ضد واحد</h2>
     <p class="mut" style="margin-top:-4px">10 أسئلة، نفس الأسئلة للاتنين، والأسرع والأدق بياخد النقاط.</p>
+    <div class="tabs"><button data-cat="gen" class="${DCAT === "gen" ? "on" : ""}">⚽ أسئلة عامة</button><button data-cat="tr" class="${DCAT === "tr" ? "on" : ""}">🔄 اعرف اللاعب</button></div>
     <div class="chal"><div class="ic">🎲</div><div class="t grow"><b>خصم عشوائي</b><small>بنوصّلك بلاعب حقيقي أونلاين دلوقتي</small></div><button class="btn" id="rnd">العب</button></div>
     <div class="chal"><div class="ic">💬</div><div class="t grow"><b>تحدّى صديق</b><small>ابعتله كود التحدي على واتساب</small></div><button class="btn" id="fr">ابعت</button></div>
+    <div class="chal"><div class="ic">🤖</div><div class="t grow"><b>ضد الكمبيوتر</b><small>من غير نت — العب في أي وقت</small></div><button class="btn" id="bot">العب</button></div>
     <div class="card"><b>🔑 عندك كود من صديقك؟</b>
       <div class="row" style="margin-top:8px"><input class="inp" id="cd" placeholder="اكتب الكود" maxlength="6" dir="ltr" style="margin:0;text-transform:uppercase;text-align:center;letter-spacing:4px"><button class="btn" id="jn" style="width:auto;padding:12px 18px;font-size:16px">انضم</button></div></div>
     ${ready() ? "" : '<p class="mut" style="text-align:center">⚠ الميزة لسه محتاجة إعداد قاعدة البيانات.</p>'}` + F.nav("challenges");
+  F.app.querySelectorAll("[data-cat]").forEach(b => b.onclick = () => { DCAT = b.dataset.cat; R.duel(); });
   $("#rnd").onclick = startRandom;
   $("#fr").onclick = createFriend;
+  $("#bot").onclick = startBot;
   $("#jn").onclick = () => joinFriend($("#cd").value);
 };
 
@@ -78,24 +83,24 @@ function waitScreen(title, sub, extra) {
 async function startRandom() {
   if (!guard()) return;
   const m = me(); clearAll();
-  st = { kind: "random", phase: "seek", me: m, alive: true };
+  st = { kind: "random", phase: "seek", me: m, alive: true, cat: DCAT };
   const s = st;
   waitScreen("بندوّر على خصم...", "استنى ثواني، بنوصّلك بلاعب حقيقي");
   const t0 = Date.now(); let fails = 0;
   const loop = async () => {
     if (st !== s || !s.alive) return;
     try {
-      const w = await db("PATCH", "/seek/" + m.id, { name: m.name, t: { ".sv": "timestamp" } });
+      const w = await db("PATCH", "/seek/" + m.id, { name: m.name, cat: s.cat, t: { ".sv": "timestamp" } });
       const now = w.t, all = (await db("GET", "/seek")) || {};
       if (st !== s || !s.alive) return;
       const mine = all[m.id];
       if (mine && mine.room) { s.phase = "play"; db("DELETE", "/seek/" + m.id).catch(() => {}); return enterRoom(mine.room, "guest"); }
-      const alive = Object.entries(all).filter(([id, v]) => v && !v.room && v.t >= now - 9000).sort((a, b) => a[0] < b[0] ? -1 : 1);
+      const alive = Object.entries(all).filter(([id, v]) => v && !v.room && v.t >= now - 9000 && (v.cat || "gen") === s.cat).sort((a, b) => a[0] < b[0] ? -1 : 1);
       if (alive.length >= 2 && alive[0][0] === m.id) {
-        const [oid, ov] = alive[1], qs = buildQs();
+        const [oid, ov] = alive[1], qs = buildQs(s.cat);
         if (!qs) throw new Error("noq");
         const Rm = code();
-        await db("PUT", "/rooms/" + Rm, { host: m, guest: { id: oid, name: ov.name || "لاعب" }, qs, state: "play", created: { ".sv": "timestamp" } });
+        await db("PUT", "/rooms/" + Rm, { host: m, guest: { id: oid, name: ov.name || "لاعب" }, qs, cat: s.cat, state: "play", created: { ".sv": "timestamp" } });
         await db("PATCH", "/seek/" + oid, { room: Rm });
         s.phase = "play"; await db("DELETE", "/seek/" + m.id).catch(() => {});
         return enterRoom(Rm, "host");
@@ -110,17 +115,17 @@ async function startRandom() {
 function noOpponent() {
   cleanupLeave();
   F.app.innerHTML = `<div style="text-align:center;padding-top:60px"><div style="font-size:64px">😴</div><h2>مفيش لاعبين متاحين دلوقتي</h2><p class="mut">جرّب تاني بعد شوية، أو تحدّى صديقك بكود على واتساب.</p>
-    <button class="btn" id="again">🔁 جرّب تاني</button><button class="btn sec" id="fr" style="margin-top:10px">💬 تحدّى صديق</button><button class="btn ghost" id="bk" style="margin-top:10px">رجوع</button></div>`;
-  $("#again").onclick = startRandom; $("#fr").onclick = createFriend; $("#bk").onclick = () => F.go("duel");
+    <button class="btn" id="again">🔁 جرّب تاني</button><button class="btn sec" id="fr" style="margin-top:10px">💬 تحدّى صديق</button><button class="btn sec" id="bt" style="margin-top:10px">🤖 العب ضد الكمبيوتر</button><button class="btn ghost" id="bk" style="margin-top:10px">رجوع</button></div>`;
+  $("#again").onclick = startRandom; $("#fr").onclick = createFriend; $("#bt").onclick = startBot; $("#bk").onclick = () => F.go("duel");
 }
 
 /* ---------- تحدي صديق بكود واتساب ---------- */
 async function createFriend() {
   if (!guard()) return;
   const m = me(); clearAll();
-  const qs = buildQs(); if (!qs) return F.toast("مفيش أسئلة كفاية");
+  const qs = buildQs(DCAT); if (!qs) return F.toast("مفيش أسئلة كفاية");
   const Rm = code();
-  try { await db("PUT", "/rooms/" + Rm, { host: m, guest: null, qs, state: "wait", created: { ".sv": "timestamp" } }); }
+  try { await db("PUT", "/rooms/" + Rm, { host: m, guest: null, qs, cat: DCAT, state: "wait", created: { ".sv": "timestamp" } }); }
   catch (e) { return F.toast("مشكلة في الاتصال، جرّب تاني"); }
   st = { kind: "friend", phase: "wait", me: m, R: Rm, alive: true };
   const s = st, text = `تحدّاني في «مليونير كرة القدم» ⚽👑\nافتح اللعبة ← التحديات ← واحد ضد واحد ← اكتب الكود: ${Rm}`;
@@ -164,6 +169,31 @@ async function joinFriend(raw) {
   } catch (e) { F.toast("مشكلة في الاتصال، جرّب تاني"); }
 }
 
+/* ---------- ضد الكمبيوتر (من غير نت) ---------- */
+function startBot() {
+  const m = me(); clearAll();
+  const qs = buildQs(DCAT); if (!qs) return F.toast("مفيش أسئلة كفاية");
+  st = { kind: "duel", phase: "play", bot: true, cat: DCAT, R: "bot", role: "host", me: m, opp: { id: "bot", name: "🤖 الكمبيوتر" }, qs, i: 0, ans: {}, alive: true, revealed: false, myAns: null, total: { me: 0, opp: 0 } };
+  F.lock = true;
+  F.setLeave(() => { clearAll(); F.lock = false; st = null; });
+  showQ();
+}
+function botPlay(s) {
+  clearTimeout(s.botT);
+  const idx = s.i, q = s.qs[idx];
+  const p = ({ 1: 0.85, 2: 0.65, 3: 0.5 })[q.l] || 0.6;
+  let c = q.a;
+  if (Math.random() >= p) { const w = [0, 1, 2, 3].filter(x => x !== q.a); c = w[Math.floor(Math.random() * w.length)]; }
+  const ms = 2500 + Math.floor(Math.random() * 9000);
+  s.botT = setTimeout(() => {
+    if (st !== s || !s.alive) return;
+    s.ans[idx] = s.ans[idx] || {}; s.ans[idx][s.opp.id] = { c, ms };
+    const s2 = $("#s2"), po = $("#po");
+    if (s.i === idx && !s.revealed && s2) { s2.textContent = "جاوب ✓"; po && po.classList.add("done"); }
+    checkReveal();
+  }, ms);
+}
+
 /* ---------- المباراة ---------- */
 async function enterRoom(Rm, role) {
   const m = me();
@@ -172,7 +202,7 @@ async function enterRoom(Rm, role) {
   if (!room) { F.toast("الغرفة مش متاحة"); return F.go("duel"); }
   clearAll();
   const opp = role === "host" ? room.guest : room.host;
-  st = { kind: "duel", phase: "play", R: Rm, role, me: m, opp: opp || { id: "?", name: "الخصم" }, qs: room.qs, i: 0, ans: {}, alive: true, revealed: false, myAns: null, total: { me: 0, opp: 0 } };
+  st = { kind: "duel", phase: "play", cat: room.cat || "gen", R: Rm, role, me: m, opp: opp || { id: "?", name: "الخصم" }, qs: room.qs, i: 0, ans: {}, alive: true, revealed: false, myAns: null, total: { me: 0, opp: 0 } };
   F.lock = true;
   F.setLeave(() => { const s = st; clearAll(); F.lock = false; st = null; });
   const s = st;
@@ -200,6 +230,7 @@ function showQ() {
   F.app.innerHTML = topBar() + `<div class="qbox">${esc(q.q)}</div>
     <div class="opts">${q.o.map((t, i) => `<button class="opt" data-o="${i}"><b>${F.LET[i]}</b><span class="tx">${esc(t)}</span><span class="pc"></span></button>`).join("")}</div>`;
   F.app.querySelectorAll("[data-o]").forEach(b => b.onclick = () => submit(+b.dataset.o));
+  if (s.bot) botPlay(s);
   clearInterval(s.tick);
   s.tick = setInterval(() => {
     if (st !== s) return;
@@ -215,11 +246,11 @@ async function submit(c) {
   F.app.querySelectorAll("[data-o]").forEach(b => { b.setAttribute("disabled", ""); if (+b.dataset.o === c) b.classList.add("sel", "mine"); });
   F.sfx.tap();
   const s1 = $("#s1"); if (s1) s1.textContent = "جاوبت ✓";
-  try { await db("PUT", "/rooms/" + s.R + "/ans/" + s.i + "/" + s.me.id, { c, ms }); } catch (e) { try { await db("PUT", "/rooms/" + s.R + "/ans/" + s.i + "/" + s.me.id, { c, ms }); } catch (e2) {} }
+  if (!s.bot) try { await db("PUT", "/rooms/" + s.R + "/ans/" + s.i + "/" + s.me.id, { c, ms }); } catch (e) { try { await db("PUT", "/rooms/" + s.R + "/ans/" + s.i + "/" + s.me.id, { c, ms }); } catch (e2) {} }
   checkReveal();
 }
 async function pollRoom() {
-  const s = st; if (!s || !s.alive || s.phase !== "play") return;
+  const s = st; if (!s || !s.alive || s.phase !== "play" || s.bot) return;
   try {
     const r = await db("GET", "/rooms/" + s.R);
     if (st !== s) return;
@@ -256,20 +287,20 @@ function endDuel(why) {
   if (why === "forfeit") res = "win";
   const S = F.S;
   S.stats.duelGames++; if (res === "win") S.stats.duelWins++;
-  const gems = res === "win" ? 60 : res === "draw" ? 25 : 10, points = res === "win" ? 300 : res === "draw" ? 120 : 40;
+  const k = s.bot ? 0.5 : 1, gems = Math.round((res === "win" ? 60 : res === "draw" ? 25 : 10) * k), points = Math.round((res === "win" ? 300 : res === "draw" ? 120 : 40) * k);
   S.gems += gems; S.points += points;
-  S.hist.unshift({ mode: "واحد ضد واحد", date: new Date().toLocaleDateString("ar-EG"), pts: points, info: res === "win" ? "فوز" : res === "draw" ? "تعادل" : "خسارة" }); S.hist = S.hist.slice(0, 30);
+  S.hist.unshift({ mode: (s.cat || DCAT) === "tr" ? "واحد ضد واحد — اعرف اللاعب" : "واحد ضد واحد", date: new Date().toLocaleDateString("ar-EG"), pts: points, info: (s.bot ? "ضد الكمبيوتر — " : "") + (res === "win" ? "فوز" : res === "draw" ? "تعادل" : "خسارة") }); S.hist = S.hist.slice(0, 30);
   F.checkAch(); F.save();
-  if (s.role === "host") setTimeout(() => db("DELETE", "/rooms/" + s.R).catch(() => {}), 8000);
+  if (s.role === "host" && !s.bot) setTimeout(() => db("DELETE", "/rooms/" + s.R).catch(() => {}), 8000);
   const icon = res === "win" ? "🏆" : res === "draw" ? "🤝" : "😞";
   const title = res === "win" ? (why === "forfeit" ? "الخصم انسحب — فزت!" : "مبروك! فزت!") : res === "draw" ? "تعادل!" : "خسرت المرة دي";
   if (res === "win") { F.celebrate(true); F.speak("مبروك! فزت"); } else if (res === "lose") { F.sfx.no(); F.sfx.boo(); F.speak("حظ أوفر المرة الجاية"); } else F.sfx.win();
   F.app.innerHTML = `<div style="text-align:center;padding-top:30px"><div style="font-size:76px">${icon}</div><h2 style="font-size:26px">${title}</h2>
     <div class="vs" style="margin-top:14px"><div class="p"><b>${esc(s.me.name)}</b><span>${a}</span></div><div class="mid" style="width:36px">VS</div><div class="p"><b>${esc(s.opp.name)}</b><span>${b}</span></div></div>
     <div class="grid2" style="margin:14px 0"><div class="card stat"><b>+${points}</b><small>نقاط</small></div><div class="card stat"><b>+${gems} 💎</b><small>جواهر</small></div></div>
-    <button class="btn" id="rm">🎲 خصم جديد</button><button class="btn sec" id="hm" style="margin-top:10px">🏠 الرئيسية</button></div>`;
+    <button class="btn" id="rm">${s.bot ? "🤖 العب تاني" : "🎲 خصم جديد"}</button><button class="btn sec" id="hm" style="margin-top:10px">🏠 الرئيسية</button></div>`;
   st = null;
-  $("#rm").onclick = () => { F.go("duel"); setTimeout(startRandom, 50); };
+  $("#rm").onclick = () => { F.go("duel"); setTimeout(s.bot ? startBot : startRandom, 50); };
   $("#hm").onclick = () => F.go("home");
 }
 })();
