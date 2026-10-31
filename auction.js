@@ -117,10 +117,12 @@ function avatar(p) {
   const n = NAT[p.nat] || ["", "", "🏳", "#456"], h = hash(p.en), skin = ["#f1c9a5", "#e0ac86", "#c68c64", "#8d5a3b", "#6b4429"][h % 5], hair = ["#1b1b1b", "#3b2a1a", "#6a4a2a", "#c9a24a", "#101010"][(h >> 3) % 5];
   return `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M12 100c0-26 16-40 38-40s38 14 38 40z" fill="${n[3]}"/><path d="M38 60l12 13 12-13" fill="#fff" opacity=".9"/><rect x="43" y="48" width="14" height="14" rx="5" fill="${skin}"/><ellipse cx="50" cy="35" rx="16" ry="19" fill="${skin}"/><path d="M33 33c0-14 8-20 17-20s17 6 17 20c-4-7-9-10-17-10s-13 3-17 10z" fill="${hair}"/></svg>`;
 }
+const RET_FROM = POOL.findIndex(p => p.en === "Pelé");
+POOL.forEach((p, i) => { p.ret = i >= RET_FROM && p.en !== "Karim Benzema"; });
 function card(p, o) {
-  o = o || {}; const sm = o.sm, n = NAT[p.nat] || ["", "", "🏳", "#456", ""];
-  const full = sm ? "" : `<div class="fc-ar">${esc(p.ar)}</div><div class="fc-nat">${n[2]} ${n[1]}</div>` + (p.pos === "COACH" ? `<div class="fc-st one"><span><b>${p.ovr}</b>COACH RATING</span></div>` : `<div class="fc-st">${stats(p).map(s => `<span><b>${s[1]}</b>${s[0]}</span>`).join("")}</div>`);
-  return `<div class="fc ${tier(p.ovr)}${sm ? " sm" : ""}${o.cls ? " " + o.cls : ""}">${o.tag ? `<div class="fc-tag">${o.tag}</div>` : ""}<div class="fc-top"><b>${p.ovr}</b><i>${p.pos === "COACH" ? "COACH" : p.pos}</i><span class="fl">${n[2]}</span></div><div class="fc-img">${avatar(p)}</div><div class="fc-nm"${(sm ? lastName(p.en) : p.en).length > (sm ? 9 : 16) ? ' style="font-size:' + (sm ? 8 : 11) + 'px"' : ""}>${esc(sm ? lastName(p.en) : p.en)}</div>${full}${o.off ? '<div class="fc-off">خارج مركزه</div>' : ""}</div>`;
+  o = o || {}; const sm = o.sm, n = NAT[p.nat] || ["", "", "🏳", "#456", ""], ret = p.pos === "COACH" || p.ret, nm = sm ? lastName(p.en) : p.en;
+  const fs = nm.length > (sm ? 9 : 11) ? ' style="font-size:' + (sm ? 7 : 12) + 'px"' : "";
+  return `<div class="fcw"><div class="fc ${ret ? "ret" : "cur"}${sm ? " sm" : ""}${o.cls ? " " + o.cls : ""}"><div class="fc-in"><div class="fc-rt"><b>${p.ovr}</b><i>${p.pos === "COACH" ? "COACH" : p.pos}</i></div><div class="fc-img">${avatar(p)}</div><div class="fc-nm"${fs}>${esc(nm)}</div><div class="fc-fl">${n[2]}</div></div></div>${sm ? "" : `<div class="fc-arc">${esc(p.ar)}</div>`}${o.tag ? `<div class="fc-cap">${o.tag}</div>` : ""}${o.off ? '<div class="fc-off">خارج مركزه</div>' : ""}</div>`;
 }
 
 /* ---------- الإعدادات ---------- */
