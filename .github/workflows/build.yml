@@ -19,6 +19,7 @@ jobs:
         run: |
           mkdir www
           cp index.html app.js duel.js auction.js questions.js questions-10.js questions.json style.css config.js cordova.js cordova_plugins.js icon.png logo.jpg www/
+          cp questions-add*.js www/ 2>/dev/null || true
           cp -r fonts www/fonts
           sed -i "s#https://raw.githubusercontent.com/[^/]*/[^/]*/main/questions.json#https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/questions.json#" www/config.js
           if [ -f firebase-db-url.txt ]; then URL=$(tr -d ' \r\n' < firebase-db-url.txt); sed -i "s#FIREBASE_DB: \"\"#FIREBASE_DB: \"$URL\"#" www/config.js; fi
@@ -49,6 +50,11 @@ jobs:
             fs.rmSync('android/app/src/main/res/mipmap-anydpi-v26', { recursive: true, force: true });
           })();
           "
+      - name: Use fixed debug keystore
+        run: |
+          test -f debug.keystore
+          mkdir -p ~/.android
+          cp debug.keystore ~/.android/debug.keystore
       - name: Build
         run: |
           npx cap sync android
