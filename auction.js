@@ -88,7 +88,27 @@ P("بيتر شمايكل","Peter Schmeichel","DEN","GK",90),P("فرانكو با
 P("نيمانيا فيديتش","Nemanja Vidić","SRB","DEF",88),P("ريو فرديناند","Rio Ferdinand","ENG","DEF",87),P("لوثار ماتيوس","Lothar Matthäus","GER","MID",92),
 P("ميشيل بلاتيني","Michel Platini","FRA","MID",93),P("لويس فيغو","Luís Figo","POR","MID",90),P("ديفيد بيكهام","David Beckham","ENG","MID",88),
 P("زلاتان إبراهيموفيتش","Zlatan Ibrahimović","SWE","ATT",91),P("روبرتو باجيو","Roberto Baggio","ITA","ATT",93),P("ريفالدو","Rivaldo","BRA","ATT",91),
-P("أندريه شيفتشينكو","Andriy Shevchenko","UKR","ATT",90)
+P("أندريه شيفتشينكو","Andriy Shevchenko","UKR","ATT",90),
+  P("أليخاندرو غارناتشو","Alejandro Garnacho","ARG","ATT",83),
+  P("جيريمي فريمبونغ","Jeremie Frimpong","NED","DEF",85),
+  P("غافي","Gavi","ESP","MID",84),
+  P("ماركوس راشفورد","Marcus Rashford","ENG","ATT",83),
+  P("أولي واتكينز","Ollie Watkins","ENG","ATT",85),
+  P("غابرييل مارتينيلي","Gabriel Martinelli","BRA","ATT",84),
+  P("بنيامين سيسكو","Benjamin Šeško","SVN","ATT",82),
+  P("غليسون بريمر","Gleison Bremer","BRA","DEF",86),
+  P("ميكي فان دي فين","Micky van de Ven","NED","DEF",83),
+  P("فيديريكو كييزا","Federico Chiesa","ITA","ATT",83),
+  P("إيبيريشي إيزي","Eberechi Eze","ENG","MID",83),
+  P("أوناي سيمون","Unai Simón","ESP","GK",84),
+  P("أليخاندرو بالدي","Alejandro Balde","ESP","DEF",82),
+  P("ديوغو جوتا","Diogo Jota","POR","ATT",84),
+  P("بييرو هينكابي","Piero Hincapié","ECU","DEF",82),
+  P("أوزيبيو","Eusébio","POR","ATT",93),
+  P("روماريو","Romário","BRA","ATT",91),
+  P("رود خوليت","Ruud Gullit","NED","MID",91),
+  P("خريستو ستويتشكوف","Hristo Stoichkov","BUL","ATT",90),
+  P("أليساندرو دل بييرو","Alessandro Del Piero","ITA","ATT",90),
 ];
 const F = window.FM, CFG = window.CFG || {}, R = F.R, $ = F.$, esc = F.esc;
 const base = () => String(CFG.FIREBASE_DB || "").replace(/\/+$/, "");
