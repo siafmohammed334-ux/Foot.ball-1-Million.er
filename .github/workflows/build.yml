@@ -50,18 +50,25 @@ jobs:
             fs.rmSync('android/app/src/main/res/mipmap-anydpi-v26', { recursive: true, force: true });
           })();
           "
-      - name: Use fixed debug keystore
-        run: |
-          test -f debug.keystore
-          mkdir -p ~/.android
-          cp debug.keystore ~/.android/debug.keystore
-      - name: Build
+      - name: Build release
         run: |
           npx cap sync android
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
+      - name: Sign release APK
+        env:
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+        run: |
+          test -f release.keystore.enc
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in release.keystore.enc -out release.keystore -pass env:KEYSTORE_PASS
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          UNSIGNED=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          "$BT/zipalign" -f -p 4 "$UNSIGNED" aligned.apk
+          "$BT/apksigner" sign --ks release.keystore --ks-key-alias footballmillionaire --ks-pass env:KEYSTORE_PASS --key-pass env:KEYSTORE_PASS --out app-release.apk aligned.apk
+          "$BT/apksigner" verify --print-certs app-release.apk
+          rm -f release.keystore
       - uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: app-release
+          path: app-release.apk
