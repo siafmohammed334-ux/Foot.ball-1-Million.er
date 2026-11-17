@@ -204,6 +204,11 @@ P("أندريه شيفتشينكو","Andriy Shevchenko","UKR","ATT",90),
   P("بول سكولز","Paul Scholes","ENG","MID",89),
   P("ميروسلاف كلوزه","Miroslav Klose","GER","ATT",89),
   P("لوران بلان","Laurent Blanc","FRA","DEF",88),
+  P("هوغو سانشيز","Hugo Sánchez","MEX","ATT",89),
+  P("مايكل لاودروب","Michael Laudrup","DEN","MID",89),
+  P("سقراط","Sócrates","BRA","MID",89),
+  P("ألان شيرر","Alan Shearer","ENG","ATT",89),
+  P("فيرناندو هييرو","Fernando Hierro","ESP","DEF",88),
 ];
 const F = window.FM, CFG = window.CFG || {}, R = F.R, $ = F.$, esc = F.esc;
 const base = () => String(CFG.FIREBASE_DB || "").replace(/\/+$/, "");
